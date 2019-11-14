@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title></title>
+        <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/100/three.js"></script> -->
+        <!-- <script src="https://raw.githubusercontent.com/mrdoob/three.js/master/build/three.js"></script> -->
+        <script src="./three.js"></script>
+
+        <script src="./GLTFLoader.js"></script>
+
+        <!-- <script src="https://cdn.rawgit.com/mrdoob/three.js/master/examples/js/loaders/GLTFLoader.js"></script> -->
+
+        <!-- <script src="https://cdn.rawgit.com/mrdoob/three.js/master/examples/js/controls/OrbitControls.js"></script> -->
+
+        <!-- <script src="./OrbitControls.js"></script> -->
+
+        <script src="./jquery-3.1.0.min.js"></script>
+        <!-- <script src="./MTLLoader.js"></script> -->
+        <style type="text/css">
+            body {
+                margin: 0px;
+            }
+
+            #container {
+                width: 600px;
+                height: 500px;
+                /* border: 1px solid black; */
+                margin: 10px auto;
+                padding: 0px;
+                background-color: #444;
+            }
+            .position_cotainer {
+                width: 500px;
+                margin: 10px auto;
+                padding: 0px;
+                font-family: monospace;
+            }
+            input, button {
+                display: block;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="container"></div>
+        <div class="position_cotainer">
+            <input type="radio" name="read_sensor" value="1" checked>["r_forarm", "l_forarm", "r_arm", "l_arm"]</input>
+            <input type="radio" name="read_sensor" value="2">["r_forarm", "l_forarm"]</input>
+            <input type="radio" name="read_sensor" value="3">["r_arm", "l_arm"]</input>
+            <button id="start_button">START</button>
+        </div>
+        <script>
+            let mesh;
+            let loaded;
+            let chordata;
+
+            let base,
+                dorsal,
+                neck,
+                head,
+                l_clavicule,
+                l_forarm,
+                l_arm,
+                l_hand,
+                r_clavicule,
+                r_forarm,
+                r_arm,
+                r_hand,
+                r_thigh,
+                r_leg,
+                r_foot,
+                l_thigh,
+                l_leg,
+                l_foot;
+
+            let body_json;
+
+            let recorded = [
+                "base",
+                "l_forarm",
+                "l_arm",
+                "dorsal",
+                "r_forarm",
+                "r_arm"
+            ];
+
+            let camera;
+            let controls;
+            let anim;
+            let read_sensor;
+            let skeleton_helper;
+
+            let timer;
+
+
+
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color("white");
+
+            const renderer = new THREE.WebGLRenderer();
+            renderer.setSize(600, 600);
+
+            var container = document.getElementById("container");
+            renderer.setSize(container.offsetWidth, container.offsetHeight);
+            container.appendChild(renderer.domElement);
+
+            const objLoader = new THREE.GLTFLoader();
+            objLoader.load("FEMALE_MOTION_CAPTURE_v2_own2_noyup.glb", gltf => {
+                loaded = gltf;
+
+                console.log(gltf);
+
+                // bones = gltf.scene.children[0].children[0];
+                bones = gltf.scene.getObjectByName("base")
+
+                body_json = {
+                    base: bones,
+
+                    dorsal: bones.children[0],
+                    neck: bones.children[0].children[0],
+                    head: bones.children[0].children[0].children[0],
+
+                    l_clavicule: bones.children[0].children[1],
+                    l_forarm: {
+                        name: "l-forarm",
+                        bone: bones.children[0].children[1].children[0],
+                        local_q: bones.children[0].children[1].children[0].quaternion.clone(),
+                        pose_q: new THREE.Quaternion(0, 0, 0, 1),
+                        diff_quat: undefined
+                    },
+                    l_arm: {
+                        name: "l-arm",
+                        bone:
+                            bones.children[0].children[1].children[0]
+                                .children[0],
+                        local_q: bones.children[0].children[1].children[0].children[0].quaternion.clone(),
+                        pose_q: new THREE.Quaternion(0, 0, 0, 1),
+                        diff_quat: undefined
+                    },
+                    l_hand:
+                        bones.children[0].children[1].children[0].children[0]
+                            .children[0],
+
+                    r_clavicule: bones.children[0].children[2],
+                    r_forarm: {
+                        name: "r-forarm",
+                        bone: bones.children[0].children[2].children[0],
+                        local_q: bones.children[0].children[2].children[0].quaternion.clone(),
+                        pose_q: new THREE.Quaternion(0, 0, 0, 1),
+                        diff_quat: undefined
+                    },
+                    r_arm: {
+                        name: "r-arm",
+                        bone:
+                            bones.children[0].children[2].children[0]
+                                .children[0],
+                        local_q: bones.children[0].children[2].children[0].children[0].quaternion.clone(),
+                        pose_q: new THREE.Quaternion(0, 0, 0, 1),
+                        diff_quat: undefined
+                    },
+                    r_hand:
+                        bones.children[0].children[2].children[0].children[0]
+                            .children[0],
+
+                    r_thigh: {
+                        name: "r-thigh",
+                        bone: bones.children[1],
+                        local_q: bones.children[1].quaternion.clone(),
+                        pose_q: new THREE.Quaternion(0, 0, 0, 1),
+                        diff_quat: undefined
+                    },
+                    r_leg: bones.children[1].children[0],
+                    r_foot: bones.children[1].children[0].children[0],
+
+
+                    l_thigh: {
+                        name: "r-thigh",
+                        bone: bones.children[2],
+                        local_q: bones.children[2].quaternion.clone(),
+                        pose_q: new THREE.Quaternion(0, 0, 0, 1),
+                        diff_quat: undefined
+                    },
+                    l_leg: bones.children[2].children[0],
+                    l_foot: bones.children[2].children[0].children[0]
+                };
+
+                scene.add(gltf.scene);
+                // camera = scene.children[0].children[0].children[0];
+                // camera = scene.getObjectByName("Camera_Orientation");
+                camera = scene.getObjectByName("Camera");
+                var axesHelper = new THREE.AxesHelper(300);
+                scene.add(axesHelper);
+                // controls = new THREE.OrbitControls(camera, renderer.domElement);
+                // controls.update();
+                skeleton_helper = new THREE.SkeletonHelper( scene.getObjectByName("FEMALE_MOTION_CAPTURE_v1").skeleton.bones[0].parent );
+                skeleton_helper.material.linewidth = 3;
+                skeleton_helper.name = "Female_Armature";
+                scene.add(skeleton_helper)
+            });
+        
+
+            function rotation_between_quats_to_quat_threejs(q1, q2) {
+                let _q1 = new THREE.Quaternion(q1.x, q1.y, q1.z, q1.w);
+                let _q2 = new THREE.Quaternion(q2.x, q2.y, q2.z, q2.w);
+                // q2 = new THREE.Quaternion(q2[1], q2[2], q2[3], q2[0]);
+
+                let tquat = new THREE.Quaternion();
+
+                tquat = _q1.conjugate();
+
+                let fl = 1.0 / _q1.dot(_q1);
+
+                tquat.set(
+                    tquat.x * fl,
+                    tquat.y * fl,
+                    tquat.z * fl,
+                    tquat.w * fl
+                );
+
+                tquat = tquat.multiply(_q2);
+
+                return tquat.clone();
+            }
+
+            var calibration_data = {
+                r_forarm: {
+                    avg_quat: new THREE.Quaternion(
+                        -0.45890122652053833,
+                        0.3783574104309082,
+                        0.8036611080169678,
+                        0.02181682176887989
+                    )
+                },
+                l_forarm: {
+                    avg_quat: new THREE.Quaternion(
+                        0.09454204142093658,
+                        -0.7289410829544067,
+                        -0.4905344247817993,
+                        0.46815061569213867
+                    )
+                },
+                l_arm: {
+                    avg_quat: new THREE.Quaternion(
+                        -0.05853792279958725,
+                        -0.7040677666664124,
+                        -0.6339148283004761,
+                        0.3148055076599121
+                    )
+                },
+                r_arm: {
+                    avg_quat: new THREE.Quaternion(
+                        0.09760019183158875,
+                        0.6259443163871765,
+                        0.5470121502876282,
+                        0.547296941280365
+                    )
+                }, 
+                r_thigh: {
+                    avg_quat: new THREE.Quaternion(
+                        0,
+                        0,
+                        0,
+                        1
+                    )
+                },
+                l_thigh: {
+                    avg_quat: new THREE.Quaternion(
+                        0,
+                        0,
+                        0,
+                        1
+                    )
+                }
+            };
+
+            var current_quat = {};
+            var calibrated = true;
+
+            function get_rot_diff(sensor_key) {
+                // FROM ARMATURE.PY
+                // q0 =
+                //     b["local_q"].conjugated() *
+                //     b["avg_quat"].copy() *
+                //     b["local_q"];
+
+                // b["diff_quat"] = self.object.pose.bones[
+                //     key
+                // ].rotation_quaternion.rotation_difference(q0);
+
+                q0 = body_json[sensor_key].local_q
+                    .clone()
+                    .conjugate()
+                    .multiply(calibration_data[sensor_key].avg_quat.clone())
+                    .multiply(body_json[sensor_key].local_q.clone());
+
+                body_json[
+                    sensor_key
+                ].diff_quat = rotation_between_quats_to_quat_threejs(
+                    body_json[sensor_key].pose_q.clone(),
+                    q0
+                );
+                console.log(sensor_key, body_json[
+                    sensor_key
+                ].diff_quat)
+            }
+
+            function get_pose_q(sensor_key, current_q) {
+                // FROM ARMATURE.PY
+                // q = b["local_q"].conjugated() * quat.copy() * b["local_q"];
+                // self.object.pose.bones[bone_name].rotation_quaternion =
+                //     q * b["diff_quat"].conjugated();
+
+                q = body_json[sensor_key].local_q
+                    .clone()
+                    .conjugate()
+                    .multiply(current_q.clone())
+                    .multiply(body_json[sensor_key].local_q.clone());
+
+                return q
+                    .clone()
+                    .multiply(
+                        body_json[sensor_key].diff_quat.clone().conjugate()
+                    );
+            }
+
+            function apply_rotation_1(sensor_key, current_q) {
+                body_json[sensor_key].pose_q = get_pose_q(sensor_key, current_q);
+
+                // console.log(sensor_key, body_json[sensor_key].pose_q);
+
+                body_json[sensor_key].bone.quaternion.copy(
+                    body_json[sensor_key]["local_q"]
+                        .clone()
+                        .multiply(body_json[sensor_key].pose_q)
+                );
+
+                renderer.render(scene, camera);
+            }
+
+            function apply_rotation_2(sensor_key, current_q) {
+                pose_q = get_pose_q(sensor_key, current_q);
+
+                rotate_with = rotation_between_quats_to_quat_threejs(
+                    body_json[sensor_key].pose_q,
+                    pose_q
+                );
+                body_json[sensor_key].pose_q = pose_q;
+
+                // console.log("pose: ", body_json[sensor_key].pose_q);
+
+                body_json[sensor_key].bone.quaternion.copy(
+                    body_json[sensor_key].bone.quaternion
+                        .clone()
+                        .multiply(rotate_with.clone())
+                );
+
+                renderer.render(scene, camera);
+            }
+
+            function apply_rotation_3(sensor_key, current_q) {
+
+                body_json[sensor_key].pose_q = get_pose_q(sensor_key, current_q);
+                identity_q = get_pose_q(sensor_key, new THREE.Quaternion(0,0,0,1));
+
+                rotate_with = rotation_between_quats_to_quat_threejs(
+                    identity_q,
+                    body_json[sensor_key].pose_q
+                );
+
+                body_json[sensor_key].bone.quaternion.copy(
+                    body_json[sensor_key]["local_q"]
+                        .clone()
+                        .multiply(rotate_with.clone())
+                );
+
+                renderer.render(scene, camera);
+            }
+
+            $.getJSON("chordata_10_22_2.json", json => {
+                chordata = json;
+            });
+
+            function init() {
+                console.log("init")
+
+                let radio_val = parseInt(document.querySelector('input[name="read_sensor"]:checked').value)
+
+                if (radio_val===1) {
+                    read_sensor = ["r_forarm", "l_forarm", "r_arm", "l_arm"]
+                } else if (radio_val===2) {
+                    read_sensor = ["r_forarm", "l_forarm"]
+
+                } else {
+                    read_sensor = ["r_arm", "l_arm"]
+                }
+
+
+                for (let sensor of Object.keys(body_json)) {
+                    if (read_sensor.indexOf(sensor) !== -1) {
+                        get_rot_diff(sensor);
+
+                        loaded.scene
+                            .getObjectByName(body_json[sensor].name)
+                            .add(new THREE.AxesHelper(2));
+                    }
+                }
+                startindex = 12000;
+                iteration = 4000;
+                index = startindex;
+                anim = true;
+
+                renderer.render(scene, camera);
+                timer = setInterval(render, 1);
+
+            }
+
+            // let index = 3633;
+            // let startindex = 15633;
+            let startindex
+            let iteration
+            let index 
+
+
+            function render_only() {
+                renderer.render(scene, camera);
+            }
+
+            function render() {
+                if (loaded && chordata) {
+                    if (anim) {
+                        if (chordata[index] ) {
+                            let sensor = chordata[index]["sensor"];
+                            // console.log(sensor);
+
+                            if (read_sensor.indexOf(sensor) !== -1) {
+                                let w = chordata[index]["W"];
+                                let x = chordata[index]["X"];
+                                let y = chordata[index]["Y"];
+                                let z = chordata[index]["Z"];
+
+                                current_quat[sensor] = new THREE.Quaternion(
+                                    x,
+                                    y,
+                                    z,
+                                    w
+                                );
+                                // console.log(index, sensor, x, y, z, w);
+
+                                apply_rotation_1(sensor, current_quat[sensor]);
+                            }
+
+                        }
+                        index++;
+                        if (index % 1000 == 0) {
+                            // console.log(index);
+                        }
+                        if (index >= startindex + iteration) {
+                            anim = false
+                        }
+                    }
+
+                    // controls.update();
+                    renderer.render(scene, camera);
+
+                }
+            }
+
+
+            document.querySelector("#start_button").addEventListener("click", init)
+
+
+        </script>
+    </body>
+</html>
